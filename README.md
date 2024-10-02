@@ -39,14 +39,13 @@ TOTAL TM LOGPROB: 0.410658
 
 Total corpus log probability (LM+TM): -1439.873990
 
+## beam search
 
-## beam_search 
-python beam_search -s 10000 | python compute-model-score
-TOTAL LM LOGPROB: -15.099772
-...........
-TOTAL TM LOGPROB: 0.757681
+TOTAL LM LOGPROB: -12.233170
+..........
+TOTAL TM LOGPROB: -1.632587
 
-Total corpus log probability (LM+TM): -1465.403029
+Total corpus log probability (LM+TM): -1353.247828
 
 
 ## greedy decoder 
@@ -75,5 +74,3 @@ TOTAL LM LOGPROB: -14.709625
 TOTAL TM LOGPROB: 0.410658
 
 Total corpus log probability (LM+TM): -1436.360138
-
-

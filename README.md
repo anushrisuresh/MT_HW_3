@@ -33,7 +33,7 @@ The language model and translation model are computed from the data
 in the align directory, using alignments from the Berkeley aligner.
 
 ## Baseline
-
+python decode | python compute-model-score
 TOTAL LM LOGPROB: -14.709625
 TOTAL TM LOGPROB: 0.410658
 
@@ -41,7 +41,39 @@ Total corpus log probability (LM+TM): -1439.873990
 
 
 ## beam_search 
+python beam_search -s 10000 | python compute-model-score
 TOTAL LM LOGPROB: -15.099772
+...........
 TOTAL TM LOGPROB: 0.757681
 
 Total corpus log probability (LM+TM): -1465.403029
+
+
+## greedy decoder 
+
+python greedy_decoder.py -s 10000 | python compute-model-score
+
+TOTAL LM LOGPROB: -21.671028
+............
+TOTAL TM LOGPROB: 1.339583
+
+Total corpus log probability (LM+TM): -1724.726193
+
+## Chart Parsing Decoder
+python chat_decoder.py -s 10000 | python compute-model-score
+
+TOTAL LM LOGPROB: -15.099772
+...........
+TOTAL TM LOGPROB: 0.757681
+
+Total corpus log probability (LM+TM): -1465.403029
+
+
+## finite_state
+python finite_state.py  | python compute-model-score
+TOTAL LM LOGPROB: -14.709625
+TOTAL TM LOGPROB: 0.410658
+
+Total corpus log probability (LM+TM): -1436.360138
+
+

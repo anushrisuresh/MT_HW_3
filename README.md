@@ -32,3 +32,16 @@ originally aligned by Ulrich Germann:
 The language model and translation model are computed from the data 
 in the align directory, using alignments from the Berkeley aligner.
 
+## Baseline
+
+TOTAL LM LOGPROB: -14.709625
+TOTAL TM LOGPROB: 0.410658
+
+Total corpus log probability (LM+TM): -1439.873990
+
+
+## beam_search 
+TOTAL LM LOGPROB: -15.099772
+TOTAL TM LOGPROB: 0.757681
+
+Total corpus log probability (LM+TM): -1465.403029

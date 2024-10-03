@@ -10,7 +10,7 @@ These commands work in a pipeline. For example:
 There is also a module:
 
 - `model.py` implements very simple interfaces for language models
- and translation models, so you don't have to. 
+ and translation models, so you don't have to :). 
 
 You can finish the assignment without modifying this file at all. 
 You should look at it if you need to understand the interface

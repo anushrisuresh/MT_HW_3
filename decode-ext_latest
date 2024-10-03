@@ -1,0 +1,263 @@
+#!/usr/bin/env python
+import optparse
+import sys, math, copy
+import models
+from collections import namedtuple
+
+optparser = optparse.OptionParser()
+optparser.add_option("-i", "--input", dest="input", default="data/input",
+                     help="File containing sentences to translate (default=data/input)")
+optparser.add_option("-t", "--translation-model", dest="tm", default="data/tm",
+                     help="File containing translation model (default=data/tm)")
+optparser.add_option("-l", "--language-model", dest="lm", default="data/lm",
+                     help="File containing ARPA-format language model (default=data/lm)")
+optparser.add_option("-n", "--num_sentences", dest="num_sents", default=10000000, type="int",
+                     help="Number of sentences to decode (default=no limit)")
+optparser.add_option("-k", "--translations-per-phrase", dest="k", default=30, type="int",
+                     help="Limit on number of translations to consider per phrase (default=30)")
+optparser.add_option("-s", "--stack-size", dest="s", default=100, type="int", help="Maximum stack size (default=9)")
+optparser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False,
+                     help="Verbose mode (default=off)")
+opts = optparser.parse_args()[0]
+
+threshold_limit = 7  # for threshold pruning
+alpha = 0.9999  # for reorder cost function
+tm = models.TM(opts.tm, opts.k)
+lm = models.LM(opts.lm)
+french = [tuple(line.strip().split()) for line in open(opts.input).readlines()[:opts.num_sents]]
+
+
+def hyp_to_phrases(hyp):
+    phrases = []
+
+    def get_phrases(hyp, ps):
+        if hyp == None:
+            return
+        else:
+            ps.insert(0, (hyp.phrase, hyp.fphrase))
+            get_phrases(hyp.predecessor, ps)
+
+    get_phrases(hyp, phrases)
+    return phrases
+
+
+def score(ps, source):
+    # language model score
+    lm_prob = 0.0
+    lm_state = lm.begin()
+    num_f_translated = 0
+    for n, (ep, fp) in enumerate(ps):
+        if ep != None and fp != None:
+            num_f_translated += len(fp)
+            for word in ep.english.split():
+                (lm_state, word_logprob) = lm.score(lm_state, word)
+                lm_prob += word_logprob
+            lm_prob += lm.end(lm_state) if num_f_translated == len(source) else 0.0
+
+    # translation model score
+    tm_prob = 0.0
+    for (ep, fp) in ps:
+        if ep != None:
+            tm_prob += ep.logprob
+
+    return (lm_prob + tm_prob)
+
+
+def reorder(distance):
+    return math.log(alpha ** distance)
+
+
+def neighborhood(ps):
+    return swap(ps) + merge(ps) + replace(ps) + split(ps)
+
+
+# Swap each unique pair of phrases, and return as a list of phrases
+def swap(ps):
+    swaps = []
+    for i in range(len(ps) - 1):
+        for j in range(i, len(ps)):
+            swapped = copy.deepcopy(ps)
+            temp = swapped[i]
+            swapped[i] = swapped[j]
+            swapped[j] = temp
+            swaps.append(swapped)
+    return swaps
+
+
+# For all phrases in the input list,
+# replaces a single phrase with each of its alternative definitions.
+# Return all of the new phrases in a list
+def replace(ps):
+    replaces = []
+    for n, p in enumerate(ps):
+        if p[1] in tm:
+            ts = tm[p[1]]
+            for t in ts:
+                if p[0] != t:
+                    replaced = copy.deepcopy(ps)
+                    replaced[n] = (t, p[1])
+                    replaces.append(replaced)
+    return replaces
+def merge(ps):
+    merges = []
+    for i in range(1, len(ps) - 1):
+        f1 = ps[i][1]
+        f2 = ps[i + 1][1]
+        if f1 and f2 and (f1 + f2) in tm:
+            for t in tm[f1 + f2]:
+                merged = copy.deepcopy(ps)
+                merged.remove(ps[i + 1])
+                merged[i] = (t, f1 + f2)
+                merges.append(merged)
+    if len(ps) >= 3:
+        for i in range(1, len(ps) - 2):
+            f1 = ps[i][1]
+            f2 = ps[i + 1][1]
+            f3 = ps[i + 2][1]
+            if f1 and f2 and f3 and (f1 + f2 + f3) in tm:
+                for t in tm[f1 + f2 + f3]:
+                    merged = copy.deepcopy(ps)
+                    merged.remove(ps[i + 1])
+                    merged.remove(ps[i + 2])
+                    merged[i] = (t, f1 + f2 + f3)
+                    merges.append(merged)
+    return merges
+
+
+def split(ps):
+    splits = []
+    for n, i in enumerate(ps):
+        french_phrase = ps[n][1]
+        if french_phrase != None:
+            if len(french_phrase) > 1:
+                for j in range(1, len(french_phrase)):
+                    s1 = french_phrase[0:j]
+                    s2 = french_phrase[j:]
+                    if s1 in tm and s2 in tm:
+                        for ts1 in tm[s1]:
+                            for ts2 in tm[s2]:
+                                spl = copy.deepcopy(ps)
+                                spl[n] = (ts1, s1)
+                                spl.insert(n + 1, (ts2, s2))
+                                splits.append(spl)
+    return splits
+
+
+def print_phrases(phrases):
+    s = ""
+    for p in phrases:
+        if p[0] != None:
+            s += p[0].english + " "
+    return s
+def get_prob(phrases):
+    s = 0
+    for p in phrases:
+        if p[0] != None:
+            s += p[0].logprob
+    return s
+
+
+def greedy_decode(source, seed):
+    # ev = evaluator.Evaluator(self.opts)
+    # e = tuple([ep.english for (ep, _) in seed if ep != None])
+    # alignments = ev.get_alignments(source, e)
+    iters = 250
+    current = seed
+    for i in range(iters):
+        s_current = score(current, source)
+        # s_current = self.score_with_grader(source, e, alignments, ev)
+        s = s_current
+        for h in neighborhood(current):
+            c = score(h, source)
+            if c > s:
+                s = c
+                best = h
+        if s == s_current:
+            return current
+        else:
+            current = best
+    return current
+
+
+def extract_tm_logprob(h):
+    return 0.0 if h.predecessor is None else h.phrase.logprob + extract_tm_logprob(h.predecessor)
+
+
+# tm should translate unknown words as-is with probability 1
+for word in set(sum(french, ())):
+    if (word,) not in tm:
+        tm[(word,)] = [models.phrase(word, 0.0)]
+
+sys.stderr.write("Decoding %s...\n" % (opts.input,))
+for f in french:
+    # The following code implements a monotone decoding
+    # algorithm (one that doesn't permute the target phrases).
+    # Hence all hypotheses in stacks[i] represent translations of
+    # the first i words of the input sentence. You should generalize
+    # this so that they can represent translations of *any* i words.
+    hypothesis = namedtuple("hypothesis", "logprob, lm_state, predecessor, phrase,prev_end,fphrase")
+    # end of previous phrase added to hypothesis
+    initial_hypothesis = hypothesis(0.0, lm.begin(), None, None, 0,None)
+    stacks = [{} for _ in f] + [{}]
+    stacks[0][lm.begin()] = initial_hypothesis
+    prev_end = 0
+    for i, stack in enumerate(stacks[:-1]):
+        threshold = max(stack.values(), key=lambda h: h.logprob).logprob * threshold_limit
+        for h in sorted(stack.values(), key=lambda h: -h.logprob)[:opts.s]:
+            if h.logprob >= threshold:
+                n_end = len(f) - i if (len(f) - i) > 0 else 1
+                for n in range(0, n_end):
+                    for j in range(i + n + 1, len(f) + 1):
+                        if abs(i - j) > 8:
+                            continue
+                        if f[i + n:j] in tm:
+                            for phrase in tm[f[i + n:j]]:
+                                logprob = h.logprob + phrase.logprob
+                                lm_state = h.lm_state
+                                for word in phrase.english.split():
+                                    (lm_state, word_logprob) = lm.score(lm_state, word)
+                                    logprob += word_logprob
+                                logprob += lm.end(lm_state) if j == len(f) else 0.0
+                                logprob += reorder(abs(i + n - h.prev_end))
+                                new_hypothesis = hypothesis(logprob, lm_state, h, phrase, j,f[i + n:j])
+                                prev_end = j
+                                prev_logprob = logprob
+                                prev_state = lm_state
+                                if n == 0:
+                                    if lm_state not in stacks[j] or stacks[j][lm_state].logprob < logprob:
+                                        stacks[j][lm_state] = new_hypothesis
+                                        prev_end = j
+                                if f[i:i + n] in tm:
+                                    for phrase in tm[f[i:i + n]]:
+                                        logprob = prev_logprob + phrase.logprob
+                                        lm_state = prev_state
+                                        for word in phrase.english.split():
+                                            (lm_state, word_logprob) = lm.score(lm_state, word)
+                                            logprob += word_logprob
+                                        logprob += lm.end(lm_state) if (i + n) == len(f) else 0.0
+                                        logprob += reorder(abs(i - prev_end))
+                                        n_hypothesis = hypothesis(logprob, lm_state, new_hypothesis, phrase, i + n,f[i:i + n])
+                                        if lm_state not in stacks[j] or stacks[j][lm_state].logprob < logprob:
+                                            stacks[j][lm_state] = n_hypothesis
+
+    winner = max(stacks[-1].values(), key=lambda h: h.logprob)
+
+
+    def extract_english(h):
+        return "" if h.predecessor is None else "%s%s " % (extract_english(h.predecessor), h.phrase.english)
+    def extract_phrase_list(h):
+        return [''] if h.predecessor is None else extract_phrase_list(h.predecessor) + [h.phrase.english]
+
+
+    def extract_tm_logprob(h):
+        return 0.0 if h.predecessor is None else h.phrase.logprob + extract_tm_logprob(h.predecessor)
+
+    # original = extract_english(winner)
+
+    # print(original)
+    original = greedy_decode(' '.join(f), hyp_to_phrases(winner))
+    print(print_phrases(original))
+    if opts.verbose:
+        tm_logprob = extract_tm_logprob(winner)
+        sys.stderr.write("LM = %f, TM = %f, Total = %f\n" %
+                         (winner.logprob - tm_logprob, tm_logprob, winner.logprob))

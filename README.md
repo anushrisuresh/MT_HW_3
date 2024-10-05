@@ -39,38 +39,33 @@ TOTAL TM LOGPROB: 0.410658
 
 Total corpus log probability (LM+TM): -1439.873990
 
-## beam search
+## Beam Search
 
-TOTAL LM LOGPROB: -12.233170
-..........
-TOTAL TM LOGPROB: -1.632587
+python decode-beam-search | python compute-model-score
 
-Total corpus log probability (LM+TM): -1353.247828
+TOTAL LM LOGPROB: -13.596412
+TOTAL TM LOGPROB: 0.212423
 
+Total corpus log probability (LM+TM): -1242.952264
 
-## greedy decoder 
+Code file: `decode-beam-search`
+Translations file: `translations` 
 
-python greedy_decoder.py -s 10000 | python compute-model-score
+## Greedy Decoder
+
+python decode-ext | python compute-model-score
 
 TOTAL LM LOGPROB: -21.671028
-............
 TOTAL TM LOGPROB: 1.339583
 
-Total corpus log probability (LM+TM): -1724.726193
+Total corpus log probability (LM+TM): -1613.207835
 
-## Chart Parsing Decoder
-python chat_decoder.py -s 10000 | python compute-model-score
+Code file: `decode-ext`
+Translations file: `translations_greedy`
 
-TOTAL LM LOGPROB: -15.099772
-...........
-TOTAL TM LOGPROB: 0.757681
+NOTE: Please find our report in the `report.pdf` file.
 
-Total corpus log probability (LM+TM): -1465.403029
-
-
-## finite_state
-python finite_state.py  | python compute-model-score
-TOTAL LM LOGPROB: -14.709625
-TOTAL TM LOGPROB: 0.410658
-
-Total corpus log probability (LM+TM): -1436.360138
+### Team
+Anushri Suresh - asures13@jh.edu
+Suhas Sasetty - ssasett1@jh.edu
+Yogeeshwar Selvaraj - yselvar1@jh.edu
